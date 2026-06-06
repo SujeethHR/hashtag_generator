@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hashtag Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <!-- Animated background orbs -->
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+
+  <div class="page">
+
+    <!-- ── Header ─────────────────────────────────────────── -->
+    <header class="hero">
+      <div class="hero-inner">
+        <div>
+          <h1>Hashtag Generator</h1>
+          <p class="subtitle">
+            Paste your content. An LLM analyzes it, generates hashtags, and
+            estimates the popularity of each.
+          </p>
+        </div>
+        <div class="header-actions">
+          <button id="historyBtn" class="btn btn-ghost small">History &amp; Favs</button>
+          <button id="themeToggle" class="btn btn-ghost small" title="Toggle theme">☀</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Platform tabs ──────────────────────────────────── -->
+    <div class="platform-tabs">
+      <button class="platform-tab active" data-platform="all">All Platforms</button>
+      <button class="platform-tab" data-platform="instagram">Instagram</button>
+      <button class="platform-tab" data-platform="twitter">X / Twitter</button>
+      <button class="platform-tab" data-platform="tiktok">TikTok</button>
+      <button class="platform-tab" data-platform="linkedin">LinkedIn</button>
+    </div>
+
+    <!-- ── Main grid ──────────────────────────────────────── -->
+    <main class="grid">
+
+      <!-- Input card -->
+      <section class="card input-card">
+        <label for="content" class="textarea-label">Your content</label>
+        <textarea
+          id="content"
+          placeholder="Paste your caption, blog post, tweet, or any text here..."
+        ></textarea>
+        <div class="textarea-meta">
+          <span id="charCount">0 chars</span>
+          <span id="wordCount">0 words</span>
+        </div>
+
+        <!-- Advanced options -->
+        <details class="advanced" id="advancedDetails">
+          <summary>Advanced options</summary>
+          <div class="advanced-body">
+            <div class="advanced-field">
+              <label for="seedTags">Seed hashtags (must include)</label>
+              <input type="text" id="seedTags"
+                placeholder="#branding #design — space-separated" />
+            </div>
+            <div class="advanced-field">
+              <label for="excludeTags">Exclusion list (never include)</label>
+              <input type="text" id="excludeTags"
+                placeholder="#spam #competitor — space-separated" />
+            </div>
+          </div>
+        </details>
+
+        <div class="controls">
+          <div class="control-row">
+            <label for="provider">LLM provider</label>
+            <div class="provider-select-wrap">
+              <select id="provider">
+                {% for p in providers %}
+                  <option value="{{ p.id }}"
+                    {% if p.id == default_provider %}selected{% endif %}
+                    {% if not p.ready %}disabled{% endif %}>
+                    {{ p.label }}{% if not p.ready %} — not configured{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <span id="providerStatusDot" class="status-dot" title="Provider status"></span>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <label for="maxTags">Hashtag count</label>
+            <input type="range" id="maxTags" min="5" max="30" value="20" />
+            <span id="maxTagsValue" class="range-value">20</span>
+          </div>
+
+          <div class="button-row">
+            <button id="clearBtn" class="btn btn-ghost">Clear</button>
+            <button id="generateBtn" class="btn btn-primary">
+              Generate <span class="shortcut-hint">⌘↵</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results card -->
+      <section class="card results-card">
+        <div class="card-title">Results</div>
+
+        <div id="emptyState" class="empty-state">
+          Your generated hashtags will appear here.
+        </div>
+
+        <div id="loadingState" class="loading-state hidden">
+          <div class="spinner"></div>
+          <span>Asking the LLM to analyze your content…</span>
+        </div>
+
+        <div id="resultsBlock" class="hidden">
+
+          <!-- Provider note + retry -->
+          <div id="providerNote" class="provider-note hidden">
+            <span id="providerNoteText"></span>
+            <button id="retryBtn" class="btn btn-ghost small hidden">Retry</button>
+          </div>
+
+          <!-- Stats -->
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-value" id="statWords">0</div>
+              <div class="stat-label">Words</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="statTags">0</div>
+              <div class="stat-label">Hashtags</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="statAvg">0</div>
+              <div class="stat-label">Avg Score</div>
+            </div>
+          </div>
+
+          <!-- Tier distribution -->
+          <div id="tierDist" class="tier-dist"></div>
+
+          <!-- Topics -->
+          <div id="topicsRow" class="topics"></div>
+
+          <!-- Filter pills -->
+          <div class="filter-pills" id="filterPills">
+            <span class="filter-pill active" data-tier="all">All</span>
+            <span class="filter-pill" data-tier="mega">Mega</span>
+            <span class="filter-pill" data-tier="trending">Trending</span>
+            <span class="filter-pill" data-tier="popular">Popular</span>
+            <span class="filter-pill" data-tier="niche">Niche</span>
+            <span class="filter-pill" data-tier="low">Low</span>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="hashtag-actions">
+            <button id="copyAllBtn" class="btn btn-ghost small">Copy All</button>
+            <button id="copySelectedBtn" class="btn btn-ghost small">Copy Selected</button>
+            <button id="txtBtn" class="btn btn-ghost small">↓ .txt</button>
+            <button id="csvBtn" class="btn btn-ghost small">↓ .csv</button>
+            <button id="jsonBtn" class="btn btn-ghost small">↓ .json</button>
+            <span id="actionStatus" class="action-status"></span>
+          </div>
+
+          <ul id="hashtagList" class="hashtag-list"></ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footnote">
+      Popularity scores are LLM estimates — useful as a guide, not exact platform metrics.
+      Click any hashtag to copy it. Star to save to favorites.
+    </footer>
+  </div>
+
+  <!-- ── History / Favorites drawer ───────────────────────── -->
+  <div id="drawerOverlay" class="drawer-overlay hidden"></div>
+  <div id="historyDrawer" class="drawer hidden">
+    <div class="drawer-header">
+      <span>History &amp; Favorites</span>
+      <button id="closeHistoryBtn" class="btn btn-ghost small">✕</button>
+    </div>
+    <div class="drawer-tabs">
+      <button class="drawer-tab active" data-tab="history">History</button>
+      <button class="drawer-tab" data-tab="favorites">Favorites</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+
+  <script>
+  // ============================================================
+  // Constants
+  // ============================================================
+  const PLATFORM_DEFAULTS = { all: 20, instagram: 25, twitter: 3, tiktok: 20, linkedin: 10 };
+  const TIER_TIPS = {
+    mega:     '90-100 · Millions of uses (e.g. #love, #travel)',
+    trending: '70-89 · Widely used in big communities',
+    popular:  '55-69 · Well-established niches',
+    niche:    '40-54 · Smaller but engaged audiences',
+    low:      '0-39 · Very specific, low volume',
+  };
+
+  // ============================================================
+  // State
+  // ============================================================
+  const state = {
+    lastResult: null,
+    platform: 'all',
+    activeFilter: 'all',
+    selectedTags: new Set(),
+    favorites: new Set(JSON.parse(localStorage.getItem('hg_favorites') || '[]')),
+    history: JSON.parse(localStorage.getItem('hg_history') || '[]'),
+    drawerTab: 'history',
+    providerStatuses: {},
+  };
+
+  // ============================================================
+  // DOM helpers
+  // ============================================================
+  const $ = (id) => document.getElementById(id);
+
+  function flashStatus(msg) {
+    const el = $('actionStatus');
+    el.textContent = msg;
+    setTimeout(() => (el.textContent = ''), 2200);
+  }
+
+  // ============================================================
+  // Persistence helpers
+  // ============================================================
+  function saveHistory() {
+    localStorage.setItem('hg_history', JSON.stringify(state.history.slice(0, 15)));
+  }
+  function saveFavorites() {
+    localStorage.setItem('hg_favorites', JSON.stringify([...state.favorites]));
+  }
+
+  // ============================================================
+  // Theme
+  // ============================================================
+  (function initTheme() {
+    const saved = localStorage.getItem('hg_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
+    $('themeToggle').textContent = saved === 'dark' ? '☀' : '☾';
+  })();
+
+  $('themeToggle').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    $('themeToggle').textContent = next === 'dark' ? '☀' : '☾';
+    localStorage.setItem('hg_theme', next);
+  });
+
+  // ============================================================
+  // Draft auto-save
+  // ============================================================
+  (function loadDraft() {
+    const d = localStorage.getItem('hg_draft');
+    if (d) $('content').value = d;
+    updateCharCount();
+  })();
+
+  $('content').addEventListener('input', () => {
+    updateCharCount();
+    localStorage.setItem('hg_draft', $('content').value);
+  });
+
+  function updateCharCount() {
+    const v = $('content').value;
+    $('charCount').textContent = v.length + ' chars';
+    $('wordCount').textContent = (v.trim() ? v.trim().split(/\s+/).length : 0) + ' words';
+  }
+
+  // ============================================================
+  // Keyboard shortcut: Cmd/Ctrl + Enter
+  // ============================================================
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      $('generateBtn').click();
+    }
+  });
+
+  // ============================================================
+  // Provider status dots
+  // ============================================================
+  async function loadProviderStatuses() {
+    try {
+      const res = await fetch('/providers');
+      const data = await res.json();
+      data.providers.forEach(p => { state.providerStatuses[p.id] = p.ready; });
+      updateProviderDot();
+    } catch (_) {}
+  }
+  function updateProviderDot() {
+    const id = $('provider').value;
+    const dot = $('providerStatusDot');
+    const ready = state.providerStatuses[id];
+    if (ready === true)       dot.className = 'status-dot ready';
+    else if (ready === false) dot.className = 'status-dot error';
+    else                      dot.className = 'status-dot';
+  }
+  loadProviderStatuses();
+  $('provider').addEventListener('change', updateProviderDot);
+
+  // ============================================================
+  // Platform tabs
+  // ============================================================
+  document.querySelectorAll('.platform-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.platform-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.platform = btn.dataset.platform;
+      const n = PLATFORM_DEFAULTS[state.platform] || 20;
+      $('maxTags').value = n;
+      $('maxTagsValue').textContent = n;
+    });
+  });
+
+  // ============================================================
+  // Range slider
+  // ============================================================
+  $('maxTags').addEventListener('input', () => {
+    $('maxTagsValue').textContent = $('maxTags').value;
+  });
+
+  // ============================================================
+  // Clear
+  // ============================================================
+  $('clearBtn').addEventListener('click', () => {
+    $('content').value = '';
+    localStorage.removeItem('hg_draft');
+    updateCharCount();
+    $('emptyState').classList.remove('hidden');
+    $('resultsBlock').classList.add('hidden');
+    $('loadingState').classList.add('hidden');
+    state.lastResult = null;
+    state.selectedTags.clear();
+    updateSelectedCount();
+  });
+
+  // ============================================================
+  // Generate
+  // ============================================================
+  $('generateBtn').addEventListener('click', async () => {
+    const content = $('content').value.trim();
+    if (!content) { $('content').focus(); return; }
+
+    $('emptyState').classList.add('hidden');
+    $('resultsBlock').classList.add('hidden');
+    $('loadingState').classList.remove('hidden');
+    state.selectedTags.clear();
+    updateSelectedCount();
+
+    try {
+      const res = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          max_tags: parseInt($('maxTags').value, 10),
+          provider: $('provider').value,
+          platform: state.platform,
+          seeds: $('seedTags').value.trim() || undefined,
+          exclusions: $('excludeTags').value.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        $('loadingState').textContent = data.error || 'Something went wrong.';
+        return;
+      }
+      state.lastResult = data;
+
+      // Save to history
+      const entry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        platform: state.platform,
+        preview: (data.hashtags || []).slice(0, 5).map(h => h.tag),
+        data,
+        contentSnip: content.slice(0, 65) + (content.length > 65 ? '…' : ''),
+      };
+      state.history.unshift(entry);
+      if (state.history.length > 15) state.history.pop();
+      saveHistory();
+
+      renderResults(data);
+    } catch (err) {
+      $('loadingState').textContent = 'Network error — is the server running?';
+    }
+  });
+
+  // ============================================================
+  // Render results
+  // ============================================================
+  function renderResults(data) {
+    $('loadingState').classList.add('hidden');
+    $('resultsBlock').classList.remove('hidden');
+
+    const stats = data.stats || {};
+    $('statWords').textContent = stats.word_count ?? 0;
+    $('statTags').textContent  = stats.hashtag_count ?? 0;
+    $('statAvg').textContent   = stats.avg_popularity ?? 0;
+
+    // Provider note
+    const note = $('providerNote');
+    if (stats.provider_used && stats.provider_used !== stats.provider_requested) {
+      $('providerNoteText').textContent =
+        `Requested ${stats.provider_requested} but it failed — fell back to ${stats.provider_used}.`;
+      $('retryBtn').classList.remove('hidden');
+      note.classList.remove('hidden');
+    } else if (stats.provider_used) {
+      $('providerNoteText').textContent = 'Generated with: ' + stats.provider_used;
+      $('retryBtn').classList.add('hidden');
+      note.classList.remove('hidden');
+    } else {
+      note.classList.add('hidden');
+    }
+
+    // Tier distribution chips
+    const tierCounts = {};
+    (data.hashtags || []).forEach(h => {
+      const t = (h.label || '').toLowerCase();
+      tierCounts[t] = (tierCounts[t] || 0) + 1;
+    });
+    const dist = $('tierDist');
+    dist.innerHTML = '';
+    ['mega', 'trending', 'popular', 'niche', 'low'].forEach(t => {
+      if (!tierCounts[t]) return;
+      const chip = document.createElement('span');
+      chip.className = `tier-dist-chip tier-${t}`;
+      chip.textContent = `${tierCounts[t]} ${t.charAt(0).toUpperCase() + t.slice(1)}`;
+      dist.appendChild(chip);
+    });
+
+    // Topics
+    const topicsRow = $('topicsRow');
+    topicsRow.innerHTML = '';
+    (data.topics || []).forEach((t, i) => {
+      if (i === 0) {
+        const lbl = document.createElement('span');
+        lbl.className = 'topics-label';
+        lbl.textContent = 'Themes:';
+        topicsRow.appendChild(lbl);
+      }
+      const chip = document.createElement('span');
+      chip.className = 'topic-chip';
+      chip.textContent = t;
+      topicsRow.appendChild(chip);
+    });
+
+    // Reset filter to all
+    state.activeFilter = 'all';
+    document.querySelectorAll('.filter-pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.tier === 'all');
+    });
+
+    renderHashtagList(data.hashtags || []);
+  }
+
+  function renderHashtagList(hashtags) {
+    const list = $('hashtagList');
+    list.innerHTML = '';
+    const visible = state.activeFilter === 'all'
+      ? hashtags
+      : hashtags.filter(h => (h.label || '').toLowerCase() === state.activeFilter);
+
+    visible.forEach((h, i) => {
+      const li = document.createElement('li');
+      li.className = 'hashtag-item';
+      li.style.animationDelay = (i * 32) + 'ms';
+
+      // Checkbox
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'hashtag-cb';
+      cb.checked = state.selectedTags.has(h.tag);
+      cb.addEventListener('change', () => {
+        if (cb.checked) state.selectedTags.add(h.tag);
+        else            state.selectedTags.delete(h.tag);
+        updateSelectedCount();
+      });
+      li.appendChild(cb);
+
+      // Left section
+      const left = document.createElement('div');
+      left.className = 'hashtag-left';
+
+      const tagRow = document.createElement('div');
+      tagRow.className = 'tag-row';
+
+      const tagEl = document.createElement('span');
+      tagEl.className = 'hashtag-tag';
+      tagEl.textContent = h.tag;
+      tagEl.title = 'Click to copy';
+      tagEl.addEventListener('click', () => {
+        navigator.clipboard.writeText(h.tag).then(() => flashStatus('Copied ' + h.tag));
+      });
+
+      const tierKey = (h.label || '').toLowerCase();
+      const badge = document.createElement('span');
+      badge.className = 'hashtag-label tier-' + tierKey;
+      badge.textContent = h.label;
+      badge.setAttribute('data-tip', TIER_TIPS[tierKey] || '');
+
+      tagRow.appendChild(tagEl);
+      tagRow.appendChild(badge);
+      left.appendChild(tagRow);
+
+      if (h.rationale) {
+        const rat = document.createElement('div');
+        rat.className = 'hashtag-rationale';
+        rat.textContent = h.rationale;
+        left.appendChild(rat);
+      }
+      li.appendChild(left);
+
+      // Right section
+      const right = document.createElement('div');
+      right.className = 'hashtag-right';
+
+      // Favorite button
+      const favBtn = document.createElement('button');
+      const isFav = state.favorites.has(h.tag);
+      favBtn.className = 'fav-btn' + (isFav ? ' active' : '');
+      favBtn.textContent = isFav ? '★' : '☆';
+      favBtn.title = 'Favorite';
+      favBtn.addEventListener('click', () => {
+        if (state.favorites.has(h.tag)) {
+          state.favorites.delete(h.tag);
+          favBtn.classList.remove('active');
+          favBtn.textContent = '☆';
+        } else {
+          state.favorites.add(h.tag);
+          favBtn.classList.add('active');
+          favBtn.textContent = '★';
+        }
+        saveFavorites();
+      });
+      right.appendChild(favBtn);
+
+      // Score bar (animated)
+      const bar = document.createElement('div');
+      bar.className = 'score-bar';
+      const fill = document.createElement('div');
+      fill.className = `score-fill tier-${tierKey}`;
+      fill.style.width = '0%';
+      bar.appendChild(fill);
+      setTimeout(() => { fill.style.width = h.score + '%'; }, i * 32 + 60);
+      right.appendChild(bar);
+
+      const scoreEl = document.createElement('span');
+      scoreEl.className = 'score-value';
+      scoreEl.textContent = h.score;
+      right.appendChild(scoreEl);
+
+      li.appendChild(right);
+      list.appendChild(li);
+    });
+  }
+
+  // ============================================================
+  // Filter pills
+  // ============================================================
+  document.querySelectorAll('.filter-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.activeFilter = pill.dataset.tier;
+      if (state.lastResult) renderHashtagList(state.lastResult.hashtags || []);
+    });
+  });
+
+  // ============================================================
+  // Selection helpers
+  // ============================================================
+  function updateSelectedCount() {
+    const n = state.selectedTags.size;
+    $('copySelectedBtn').textContent = n ? `Copy Selected (${n})` : 'Copy Selected';
+  }
+
+  $('copySelectedBtn').addEventListener('click', async () => {
+    if (!state.selectedTags.size) return;
+    await navigator.clipboard.writeText([...state.selectedTags].join(' '));
+    flashStatus(`Copied ${state.selectedTags.size} tag${state.selectedTags.size > 1 ? 's' : ''}`);
+  });
+
+  // ============================================================
+  // Copy all visible
+  // ============================================================
+  $('copyAllBtn').addEventListener('click', async () => {
+    if (!state.lastResult) return;
+    const tags = getVisibleTags().map(h => h.tag);
+    if (!tags.length) return;
+    await navigator.clipboard.writeText(tags.join(' '));
+    flashStatus(`Copied ${tags.length} tags!`);
+  });
+
+  function getVisibleTags() {
+    if (!state.lastResult) return [];
+    const all = state.lastResult.hashtags || [];
+    return state.activeFilter === 'all'
+      ? all
+      : all.filter(h => (h.label || '').toLowerCase() === state.activeFilter);
+  }
+
+  // ============================================================
+  // Export
+  // ============================================================
+  async function downloadFile(fmt) {
+    if (!state.lastResult) return;
+    const hashtags = state.lastResult.hashtags || [];
+
+    if (fmt === 'json') {
+      const blob = new Blob(
+        [JSON.stringify({ hashtags, topics: state.lastResult.topics }, null, 2)],
+        { type: 'application/json' }
+      );
+      triggerDownload(blob, 'hashtags.json');
+      flashStatus('Downloaded JSON');
+      return;
+    }
+
+    const res = await fetch('/export/' + fmt, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hashtags }),
+    });
+    if (!res.ok) { flashStatus('Export failed'); return; }
+    triggerDownload(await res.blob(), 'hashtags.' + fmt);
+    flashStatus('Downloaded ' + fmt.toUpperCase());
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  $('txtBtn').addEventListener('click',  () => downloadFile('txt'));
+  $('csvBtn').addEventListener('click',  () => downloadFile('csv'));
+  $('jsonBtn').addEventListener('click', () => downloadFile('json'));
+
+  // ============================================================
+  // Retry button
+  // ============================================================
+  $('retryBtn').addEventListener('click', () => $('generateBtn').click());
+
+  // ============================================================
+  // History / Favorites drawer
+  // ============================================================
+  function openDrawer() {
+    $('historyDrawer').classList.remove('hidden');
+    requestAnimationFrame(() => $('historyDrawer').classList.add('open'));
+    $('drawerOverlay').classList.remove('hidden');
+    renderDrawer();
+  }
+  function closeDrawer() {
+    $('historyDrawer').classList.remove('open');
+    $('drawerOverlay').classList.add('hidden');
+    setTimeout(() => $('historyDrawer').classList.add('hidden'), 260);
+  }
+
+  $('historyBtn').addEventListener('click', openDrawer);
+  $('closeHistoryBtn').addEventListener('click', closeDrawer);
+  $('drawerOverlay').addEventListener('click', closeDrawer);
+
+  document.querySelectorAll('.drawer-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.drawer-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      state.drawerTab = tab.dataset.tab;
+      renderDrawer();
+    });
+  });
+
+  function renderDrawer() {
+    const body = $('drawerBody');
+    body.innerHTML = '';
+
+    if (state.drawerTab === 'history') {
+      if (!state.history.length) {
+        body.innerHTML = '<div class="empty-drawer">No history yet.<br>Generate some hashtags to see them here.</div>';
+        return;
+      }
+      state.history.forEach(entry => {
+        const el = document.createElement('div');
+        el.className = 'history-item';
+        const ts = new Date(entry.timestamp);
+        const timeStr = ts.toLocaleDateString() + ' ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        el.innerHTML = `
+          <div class="history-meta">
+            <span class="history-platform">${entry.platform}</span>
+            <span>${timeStr}</span>
+          </div>
+          <div class="history-preview">${entry.preview.slice(0, 4).join(' ')}</div>
+          <div class="history-content-snip">${entry.contentSnip}</div>
+        `;
+        el.addEventListener('click', () => {
+          state.lastResult = entry.data;
+          renderResults(entry.data);
+          closeDrawer();
+        });
+        body.appendChild(el);
+      });
+
+      // Clear history button
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'btn btn-ghost small';
+      clearBtn.style.cssText = 'width:100%;margin-top:8px;';
+      clearBtn.textContent = 'Clear history';
+      clearBtn.addEventListener('click', () => {
+        state.history = [];
+        saveHistory();
+        renderDrawer();
+      });
+      body.appendChild(clearBtn);
+
+    } else {
+      // Favorites tab
+      if (!state.favorites.size) {
+        body.innerHTML = '<div class="empty-drawer">No favorites yet.<br>Click ☆ on any hashtag to save it here.</div>';
+        return;
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'favs-wrap';
+      [...state.favorites].sort().forEach(tag => {
+        const chip = document.createElement('span');
+        chip.className = 'fav-tag-chip';
+        chip.title = 'Click to copy';
+        chip.innerHTML = `${tag} <span class="fav-remove" title="Remove">×</span>`;
+        chip.querySelector('.fav-remove').addEventListener('click', e => {
+          e.stopPropagation();
+          state.favorites.delete(tag);
+          saveFavorites();
+          renderDrawer();
+        });
+        chip.addEventListener('click', () => {
+          navigator.clipboard.writeText(tag).then(() => flashStatus('Copied ' + tag));
+        });
+        wrap.appendChild(chip);
+      });
+      body.appendChild(wrap);
+
+      const copyAllFavsBtn = document.createElement('button');
+      copyAllFavsBtn.className = 'btn btn-ghost small';
+      copyAllFavsBtn.style.cssText = 'width:100%;margin-top:10px;';
+      copyAllFavsBtn.textContent = `Copy all ${state.favorites.size} favorite${state.favorites.size > 1 ? 's' : ''}`;
+      copyAllFavsBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText([...state.favorites].join(' '))
+          .then(() => flashStatus('Copied all favorites!'));
+      });
+      body.appendChild(copyAllFavsBtn);
+
+      const clearFavsBtn = document.createElement('button');
+      clearFavsBtn.className = 'btn btn-ghost small';
+      clearFavsBtn.style.cssText = 'width:100%;margin-top:6px;';
+      clearFavsBtn.textContent = 'Clear all favorites';
+      clearFavsBtn.addEventListener('click', () => {
+        state.favorites.clear();
+        saveFavorites();
+        renderDrawer();
+      });
+      body.appendChild(clearFavsBtn);
+    }
+  }
+  </script>
+</body>
+</html>
