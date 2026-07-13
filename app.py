@@ -36,6 +36,66 @@ load_dotenv()
 app = Flask(__name__)
 
 # ----------------------------------------------------------------------
+# Site / SEO metadata
+# ----------------------------------------------------------------------
+# Public URL the app is served from (used for canonical, OG, sitemap).
+# Override in production, e.g. SITE_URL=https://yourdomain.com
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/")
+SITE_NAME = "Hashtag Generator"
+SITE_TAGLINE = "Free AI Hashtag Generator for Instagram, TikTok, X & LinkedIn"
+SITE_DESCRIPTION = (
+    "Paste any caption, blog post, or tweet and get relevant, AI-generated "
+    "hashtags with a popularity score for each. Free, works for Instagram, "
+    "TikTok, X/Twitter, and LinkedIn — no sign-up required."
+)
+
+# Question/answer pairs used both for the visible FAQ section and the
+# FAQPage structured data (JSON-LD). Keeping a single source keeps the
+# human-readable content and the machine-readable schema in sync.
+FAQ_ITEMS = [
+    {
+        "q": "What is the Hashtag Generator?",
+        "a": "It is a free web tool that analyzes text you paste — a caption, "
+             "blog post, tweet, or any content — with a large language model "
+             "and returns the most relevant hashtags, each with an estimated "
+             "popularity score from 0 to 100.",
+    },
+    {
+        "q": "How do I use it?",
+        "a": "Paste your content into the box, optionally pick a platform "
+             "(Instagram, TikTok, X/Twitter, or LinkedIn) and how many "
+             "hashtags you want, then press Generate. You can copy the "
+             "results or export them as .txt, .csv, or .json.",
+    },
+    {
+        "q": "Is the Hashtag Generator free?",
+        "a": "Yes. The tool is free to use and requires no account or sign-up. "
+             "It runs on an LLM, and falls back to a built-in keyword-based "
+             "generator if no AI provider is configured.",
+    },
+    {
+        "q": "Which platforms does it support?",
+        "a": "It tailors hashtags for Instagram, TikTok, X (Twitter), and "
+             "LinkedIn. For example, it suggests up to 30 mixed-reach tags "
+             "for Instagram but only a few punchy tags for X.",
+    },
+    {
+        "q": "What does the popularity score mean?",
+        "a": "Each hashtag gets a score from 0 to 100 estimating how widely it "
+             "is used: 90-100 is mega-popular (millions of posts), 70-89 is "
+             "trending, 55-69 is popular, 40-54 is niche, and below 40 is "
+             "specialized and low-volume. Scores are AI estimates, not exact "
+             "platform metrics.",
+    },
+    {
+        "q": "Can I force-include or exclude specific hashtags?",
+        "a": "Yes. Under Advanced options you can add seed hashtags that must "
+             "always appear, and an exclusion list of hashtags that should "
+             "never be suggested.",
+    },
+]
+
+# ----------------------------------------------------------------------
 # Config
 # ----------------------------------------------------------------------
 ABACUS_API_KEY = os.environ.get("ABACUS_API_KEY")
@@ -388,7 +448,69 @@ def index():
         "index.html",
         providers=list_providers(),
         default_provider=default_provider(),
+        site_url=SITE_URL,
+        site_name=SITE_NAME,
+        site_tagline=SITE_TAGLINE,
+        site_description=SITE_DESCRIPTION,
+        faq_items=FAQ_ITEMS,
     )
+
+
+# ----------------------------------------------------------------------
+# SEO / AEO routes (robots, sitemap, llms.txt)
+# ----------------------------------------------------------------------
+@app.route("/robots.txt")
+def robots_txt():
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "\n"
+        "# AI answer engines are welcome to crawl this tool.\n"
+        f"Sitemap: {SITE_URL}/sitemap.xml\n"
+    )
+    return Response(body, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        "  <url>\n"
+        f"    <loc>{SITE_URL}/</loc>\n"
+        "    <changefreq>weekly</changefreq>\n"
+        "    <priority>1.0</priority>\n"
+        "  </url>\n"
+        "</urlset>\n"
+    )
+    return Response(body, mimetype="application/xml")
+
+
+@app.route("/llms.txt")
+def llms_txt():
+    """Machine-readable summary for AI answer engines (llmstxt.org convention)."""
+    lines = [
+        f"# {SITE_NAME}",
+        "",
+        f"> {SITE_DESCRIPTION}",
+        "",
+        "## What it does",
+        "",
+        "- Analyzes pasted text with an LLM and returns relevant hashtags.",
+        "- Gives each hashtag a 0-100 popularity score and a short rationale.",
+        "- Tailors output for Instagram, TikTok, X/Twitter, and LinkedIn.",
+        "- Supports seed hashtags (always include) and exclusions (never include).",
+        "- Exports results as .txt, .csv, or .json. Free, no sign-up.",
+        "",
+        "## FAQ",
+        "",
+    ]
+    for item in FAQ_ITEMS:
+        lines.append(f"### {item['q']}")
+        lines.append("")
+        lines.append(item["a"])
+        lines.append("")
+    return Response("\n".join(lines), mimetype="text/plain")
 
 
 @app.route("/providers")

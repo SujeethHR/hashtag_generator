@@ -3,8 +3,82 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hashtag Generator</title>
+
+  <!-- ── Primary SEO meta ─────────────────────────────────── -->
+  <title>{{ site_tagline }}</title>
+  <meta name="description" content="{{ site_description }}" />
+  <meta name="keywords" content="hashtag generator, AI hashtags, Instagram hashtags, TikTok hashtags, Twitter hashtags, LinkedIn hashtags, social media, hashtag tool" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="author" content="{{ site_name }}" />
+  <link rel="canonical" href="{{ site_url }}/" />
+
+  <!-- ── Open Graph (Facebook, LinkedIn, etc.) ────────────── -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="{{ site_name }}" />
+  <meta property="og:title" content="{{ site_tagline }}" />
+  <meta property="og:description" content="{{ site_description }}" />
+  <meta property="og:url" content="{{ site_url }}/" />
+  <meta property="og:image" content="{{ site_url }}/static/og-image.png" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- ── Twitter / X Card ─────────────────────────────────── -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ site_tagline }}" />
+  <meta name="twitter:description" content="{{ site_description }}" />
+  <meta name="twitter:image" content="{{ site_url }}/static/og-image.png" />
+
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+
+  <!-- ── Structured data (SEO + AEO / answer engines) ─────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": {{ site_name | tojson }},
+    "url": {{ (site_url + "/") | tojson }},
+    "description": {{ site_description | tojson }},
+    "applicationCategory": "UtilityApplication",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "featureList": [
+      "AI-generated hashtags from any text",
+      "Popularity score for every hashtag",
+      "Platform presets for Instagram, TikTok, X/Twitter and LinkedIn",
+      "Seed and exclusion lists",
+      "Export to TXT, CSV and JSON"
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to generate hashtags for your content",
+    "description": {{ site_description | tojson }},
+    "step": [
+      { "@type": "HowToStep", "position": 1, "name": "Paste your content", "text": "Paste your caption, blog post, tweet, or any text into the input box." },
+      { "@type": "HowToStep", "position": 2, "name": "Choose a platform", "text": "Pick Instagram, TikTok, X/Twitter, or LinkedIn, and set how many hashtags you want." },
+      { "@type": "HowToStep", "position": 3, "name": "Generate", "text": "Press Generate to get relevant hashtags, each with a popularity score." },
+      { "@type": "HowToStep", "position": 4, "name": "Copy or export", "text": "Copy the hashtags or export them as TXT, CSV, or JSON." }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {% for item in faq_items %}
+      {
+        "@type": "Question",
+        "name": {{ item.q | tojson }},
+        "acceptedAnswer": { "@type": "Answer", "text": {{ item.a | tojson }} }
+      }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ]
+  }
+  </script>
 </head>
 <body>
 
@@ -171,6 +245,35 @@
         </div>
       </section>
     </main>
+
+    <!-- ── SEO / AEO content: How it works + FAQ ────────────── -->
+    <section class="seo-content" aria-labelledby="howItWorksHeading">
+      <h2 id="howItWorksHeading">How the Hashtag Generator works</h2>
+      <p>
+        {{ site_name }} is a free tool that turns any text into relevant,
+        ready-to-use hashtags. Paste a caption, blog post, or tweet, choose a
+        platform, and an AI model analyzes your content to suggest hashtags —
+        each with an estimated popularity score so you can balance reach and
+        relevance. It works for Instagram, TikTok, X (Twitter), and LinkedIn,
+        with no account or sign-up required.
+      </p>
+      <ol class="how-steps">
+        <li><strong>Paste your content</strong> into the input box above.</li>
+        <li><strong>Pick a platform</strong> and how many hashtags you want.</li>
+        <li><strong>Generate</strong> to get scored, relevant hashtags.</li>
+        <li><strong>Copy or export</strong> them as TXT, CSV, or JSON.</li>
+      </ol>
+
+      <h2 id="faqHeading">Frequently asked questions</h2>
+      <div class="faq-list">
+        {% for item in faq_items %}
+        <details class="faq-item">
+          <summary>{{ item.q }}</summary>
+          <p>{{ item.a }}</p>
+        </details>
+        {% endfor %}
+      </div>
+    </section>
 
     <footer class="footnote">
       Popularity scores are LLM estimates — useful as a guide, not exact platform metrics.

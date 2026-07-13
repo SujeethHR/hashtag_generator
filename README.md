@@ -20,7 +20,11 @@ pip3 install -r requirements.txt
 
 **2. Add your API key**
 
-Open `.env` and add your key(s):
+Copy `.env.example` to `.env` and add your key(s):
+
+```bash
+cp .env.example .env
+```
 
 ```
 ABACUS_API_KEY=your_key_here
@@ -33,7 +37,7 @@ ABACUS_API_KEY=your_key_here
 python3 app.py
 ```
 
-Open http://127.0.0.1:5001 in your browser.
+Open http://127.0.0.1:5000 in your browser.
 
 ---
 
@@ -79,6 +83,12 @@ Open http://127.0.0.1:5001 in your browser.
 ### History & Favorites
 - **History** — the last 15 generations are saved in `localStorage`. Click any entry to reload its results. Includes platform, top tags, and a snippet of the original content.
 - **Favorites** — star hashtags from any result to save them permanently. Open the drawer to copy individual tags or copy all favorites at once.
+
+### SEO / AEO
+- On-page **"How it works"** section and an **FAQ** with matching `WebApplication`, `HowTo`, and `FAQPage` JSON-LD structured data.
+- Open Graph and Twitter Card meta tags for link previews.
+- `/robots.txt`, `/sitemap.xml`, and `/llms.txt` (a machine-readable summary for AI answer engines).
+- Set `SITE_URL` in `.env` (e.g. `https://yourdomain.com`) to point canonical/OG tags and the sitemap at your real domain in production. Defaults to `http://localhost:5000`.
 
 ---
 
@@ -135,5 +145,5 @@ Scores are LLM estimates — useful as a relative guide, not exact platform metr
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.13 or higher
 - At least one configured provider key, or use the built-in heuristic (no key needed)
